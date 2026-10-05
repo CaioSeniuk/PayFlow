@@ -1,0 +1,12 @@
+spring:
+  config:
+    import: optional:file:../.env[.properties]
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5433}/${POSTGRES_DB:payflow}
+    username: ${POSTGRES_USER:payflow}
+    password: ${POSTGRES_PASSWORD}
+
+payflow:
+  demo-merchant:
+    enabled: true
+    api-key: ${DEMO_MERCHANT_API_KEY}
