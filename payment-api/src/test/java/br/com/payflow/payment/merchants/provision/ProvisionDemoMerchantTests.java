@@ -1,11 +1,12 @@
-package br.com.payflow.payment.application;
+package br.com.payflow.payment.merchants.provision;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 
-import br.com.payflow.payment.domain.Merchant;
+import br.com.payflow.payment.merchants.domain.Merchant;
+import br.com.payflow.payment.merchants.infrastructure.crypto.Sha256ApiKeyHasher;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,11 +17,12 @@ class ProvisionDemoMerchantTests {
     private static final String KEY = "a".repeat(32);
     private static final Instant NOW = Instant.parse("2026-10-06T00:00:00Z");
     private final AtomicReference<Merchant> stored = new AtomicReference<>();
+    private final Sha256ApiKeyHasher hasher = new Sha256ApiKeyHasher();
     private final ProvisionDemoMerchant useCase = new ProvisionDemoMerchant(
             candidate -> {
                 stored.compareAndSet(null, candidate);
                 return stored.get();
-            }, Clock.fixed(NOW, ZoneOffset.UTC));
+            }, hasher, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void createsMerchantWithHashAndFixedTime() {
@@ -35,7 +37,7 @@ class ProvisionDemoMerchantTests {
     @Test
     void repetitionKeepsOriginalMerchantAndTimestamp() {
         Merchant original = useCase.execute(KEY);
-        var later = new ProvisionDemoMerchant(candidate -> stored.get(),
+        var later = new ProvisionDemoMerchant(candidate -> stored.get(), hasher,
                 Clock.fixed(NOW.plusSeconds(3600), ZoneOffset.UTC));
         assertThat(later.execute(KEY)).isSameAs(original);
     }
@@ -60,7 +62,14 @@ class ProvisionDemoMerchantTests {
     void persistenceFailureIsNotHidden() {
         var failing = new ProvisionDemoMerchant(candidate -> {
             throw new IllegalStateException("Storage unavailable");
-        }, Clock.fixed(NOW, ZoneOffset.UTC));
+        }, hasher, Clock.fixed(NOW, ZoneOffset.UTC));
         assertThatThrownBy(() -> failing.execute(KEY)).hasMessage("Storage unavailable");
+    }
+
+    @Test
+    void hashingIsDelegatedToThePort() {
+        var custom = new ProvisionDemoMerchant(candidate -> candidate,
+                apiKey -> "f".repeat(64), Clock.fixed(NOW, ZoneOffset.UTC));
+        assertThat(custom.execute(KEY).apiKeyHash()).isEqualTo("f".repeat(64));
     }
 }

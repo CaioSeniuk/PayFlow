@@ -1,4 +1,4 @@
-package br.com.payflow.payment.config;
+package br.com.payflow.payment.merchants.provision;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

@@ -1,0 +1,47 @@
+flowchart LR
+    client(["Lojista / Portal<br/>HTTP + X-Api-Key"])
+    runner(["Inicialização Spring<br/>ApplicationRunner"])
+    atlas[("MongoDB Atlas<br/>coleção merchants")]
+
+    subgraph api["Payment API — Spring Boot"]
+        direction LR
+
+        subgraph s1["Slice: provision — Provisionar lojista demo"]
+            direction TB
+            s1cfg["ProvisionDemoMerchantSlice<br/>(composição)"]
+            s1uc["ProvisionDemoMerchant<br/>(caso de uso)"]
+            s1port[/"MerchantProvisioning<br/>(porta de saída)"/]
+            s1cfg --> s1uc --> s1port
+        end
+
+        subgraph s2["Slice: authenticate — Autenticar lojista"]
+            direction TB
+            s2ctl["CurrentMerchantController<br/>GET /v1/merchants/me"]
+            s2uc["AuthenticateMerchant<br/>(caso de uso)"]
+            s2port[/"MerchantLookup<br/>(porta de saída)"/]
+            s2ctl --> s2uc --> s2port
+        end
+
+        subgraph core["Núcleo compartilhado: merchants.domain"]
+            direction TB
+            dom["Merchant · ApiKey"]
+            hport[/"ApiKeyHasher<br/>(porta)"/]
+        end
+
+        subgraph infra["Infraestrutura: merchants.infrastructure"]
+            direction TB
+            mongo["MongoMerchantStore<br/>+ MerchantDocument / Mapper"]
+            sha["Sha256ApiKeyHasher"]
+        end
+    end
+
+    runner --> s1cfg
+    client --> s2ctl
+    s1uc --> dom
+    s1uc --> hport
+    s2uc --> dom
+    s2uc --> hport
+    mongo -. implementa .-> s1port
+    mongo -. implementa .-> s2port
+    sha -. implementa .-> hport
+    mongo --> atlas

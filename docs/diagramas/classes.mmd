@@ -1,0 +1,108 @@
+classDiagram
+    direction LR
+
+    namespace domain {
+        class Merchant {
+            <<record>>
+            +UUID id
+            +String name
+            +String apiKeyHash
+            +Instant createdAt
+        }
+        class ApiKey {
+            <<value object>>
+            +MIN_LENGTH = 32
+            +MAX_LENGTH = 256
+            +of(String) ApiKey
+            +isWellFormed(String) boolean
+            +value() String
+        }
+        class ApiKeyHasher {
+            <<interface>>
+            +hash(ApiKey) String
+        }
+    }
+
+    namespace provision {
+        class ProvisionDemoMerchant {
+            <<use case>>
+            +MERCHANT_ID UUID
+            +execute(String apiKey) Merchant
+        }
+        class MerchantProvisioning {
+            <<interface>>
+            +insertIfAbsent(Merchant) Merchant
+        }
+        class ProvisionDemoMerchantSlice {
+            <<configuration>>
+        }
+        class DemoMerchantProperties {
+            <<record>>
+            +String apiKey
+        }
+    }
+
+    namespace authenticate {
+        class AuthenticateMerchant {
+            <<use case>>
+            +execute(String apiKey) AuthenticatedMerchant
+        }
+        class MerchantLookup {
+            <<interface>>
+            +findByApiKeyHash(String) Optional~Merchant~
+        }
+        class AuthenticatedMerchant {
+            <<record>>
+            +UUID id
+            +String name
+        }
+        class InvalidApiKeyException
+        class CurrentMerchantController {
+            <<controller>>
+            +currentMerchant(String) CurrentMerchantResponse
+            +invalidApiKey(InvalidApiKeyException) ProblemDetail
+        }
+        class AuthenticateMerchantSlice {
+            <<configuration>>
+        }
+    }
+
+    namespace infrastructure {
+        class MongoMerchantStore {
+            <<adapter>>
+            +insertIfAbsent(Merchant) Merchant
+            +findByApiKeyHash(String) Optional~Merchant~
+        }
+        class Sha256ApiKeyHasher {
+            <<adapter>>
+            +hash(ApiKey) String
+        }
+        class MerchantDocument
+        class MerchantMapper
+        class MerchantInfrastructureConfiguration {
+            <<configuration>>
+        }
+    }
+
+    ProvisionDemoMerchant --> MerchantProvisioning
+    ProvisionDemoMerchant --> ApiKeyHasher
+    ProvisionDemoMerchant ..> Merchant
+    ProvisionDemoMerchant ..> ApiKey
+    ProvisionDemoMerchantSlice ..> ProvisionDemoMerchant : cria
+    ProvisionDemoMerchantSlice ..> DemoMerchantProperties
+
+    AuthenticateMerchant --> MerchantLookup
+    AuthenticateMerchant --> ApiKeyHasher
+    AuthenticateMerchant ..> AuthenticatedMerchant
+    AuthenticateMerchant ..> InvalidApiKeyException
+    CurrentMerchantController --> AuthenticateMerchant
+    AuthenticateMerchantSlice ..> AuthenticateMerchant : cria
+
+    MerchantProvisioning <|.. MongoMerchantStore
+    MerchantLookup <|.. MongoMerchantStore
+    ApiKeyHasher <|.. Sha256ApiKeyHasher
+    MongoMerchantStore ..> MerchantMapper
+    MerchantMapper ..> MerchantDocument
+    MerchantMapper ..> Merchant
+    MerchantInfrastructureConfiguration ..> MongoMerchantStore : cria
+    MerchantInfrastructureConfiguration ..> Sha256ApiKeyHasher : cria

@@ -1,7 +1,7 @@
-package br.com.payflow.payment.infrastructure.persistence.mongodb;
+package br.com.payflow.payment.merchants.infrastructure.mongodb;
 
 import java.util.Objects;
-import br.com.payflow.payment.domain.Merchant;
+import br.com.payflow.payment.merchants.domain.Merchant;
 
 final class MerchantMapper {
 

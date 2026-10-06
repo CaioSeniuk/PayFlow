@@ -1,4 +1,4 @@
-package br.com.payflow.payment.domain;
+package br.com.payflow.payment.merchants.domain;
 
 import java.time.Instant;
 import java.util.Objects;

@@ -7,32 +7,36 @@ Nao processa dinheiro real nem recebe dados de cartao.
 
 Spring Data MongoDB, documento e repositorio de lojistas, indice unico para
 hash da API Key, provisionamento opcional de demonstracao e health check.
-Pagamentos, autenticacao HTTP, portal e notificacoes ainda nao foram implementados.
+Pagamentos, portal e notificacoes ainda nao foram implementados.
 JPA, Flyway, PostgreSQL e H2 foram removidos da configuracao atual.
 
-Clean Architecture aplicada ao provisionamento do lojista: dominio e caso
-de uso independentes de frameworks, com adaptador MongoDB externo.
-Vertical Slice e a etapa especifica de SOLID ficam com outra equipe.
-Veja [PLANO_MVP.md](PLANO_MVP.md) para o escopo.
+Vertical Slice + Clean Architecture + SOLID aplicados a duas funcionalidades:
+provisionamento do lojista demo e autenticacao por API Key
+(`GET /v1/merchants/me`). Detalhes e diagramas em
+[docs/ARQUITETURA_BACKEND.md](docs/ARQUITETURA_BACKEND.md).
+Veja [docs/PLANO_MVP.md](docs/PLANO_MVP.md) para o escopo.
 
 ### Organizacao interna
 
 ```text
-domain/                              Merchant puro (Java)
-application/                         ProvisionDemoMerchant e MerchantStore
-infrastructure/persistence/mongodb/  Documento, mapper e adaptador MongoDB
-config/                              Composicao Spring, indices e runner
+merchants/domain/          Merchant, ApiKey e porta ApiKeyHasher (Java puro)
+merchants/provision/       Slice: ProvisionDemoMerchant + porta MerchantProvisioning
+merchants/authenticate/    Slice: AuthenticateMerchant + porta MerchantLookup + controller
+merchants/infrastructure/  Adaptadores MongoDB e SHA-256, indice unico
 ```
 
-Dependencias: `application -> domain`; `infrastructure -> application/domain`;
-`config` conecta os componentes. O nucleo nao importa Spring, MongoDB ou
-Jakarta. O contrato `MerchantStore.insertIfAbsent` exige insercao atomica sem
-sobrescrever um lojista existente; o adaptador preserva o upsert MongoDB.
-O documento mantem a colecao `merchants`, os campos e o formato UUID existentes.
+Fatias nao dependem entre si; dominio e casos de uso nao importam Spring,
+MongoDB ou Jakarta; a infraestrutura implementa as portas das fatias.
+As regras sao verificadas por `ArchitectureTests` (ArchUnit).
 
-O runner apenas chama o caso de uso e registra o resultado. Hash, validacao
-da chave e rejeicao de credencial diferente pertencem ao caso de uso.
-Nao foram acrescentados endpoints ou funcionalidades de pagamento.
+### Autenticacao do lojista
+
+```bash
+curl -H "X-Api-Key: $DEMO_MERCHANT_API_KEY" http://localhost:8080/v1/merchants/me
+```
+
+Retorna `id` e `name`. Chave ausente, malformada ou desconhecida retorna
+`401` com Problem Details, sem indicar qual foi o motivo.
 
 ### Validacao realizada
 
@@ -217,5 +221,5 @@ preservacao do documento em caso de conflito.
 
 ## Publicacao
 
-Consulte [DEPLOYMENT.md](DEPLOYMENT.md) para publicar a imagem e executar
+Consulte [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para publicar a imagem e executar
 na nuvem. O banco pode permanecer no Atlas enquanto a API executa no Azure.

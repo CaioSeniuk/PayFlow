@@ -9,9 +9,9 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 
-import br.com.payflow.payment.application.ProvisionDemoMerchant;
-import br.com.payflow.payment.infrastructure.persistence.mongodb.MerchantDocument;
-import br.com.payflow.payment.infrastructure.persistence.mongodb.SpringDataMerchantRepository;
+import br.com.payflow.payment.merchants.infrastructure.mongodb.MerchantDocument;
+import br.com.payflow.payment.merchants.infrastructure.mongodb.SpringDataMerchantRepository;
+import br.com.payflow.payment.merchants.provision.ProvisionDemoMerchant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationRunner;
@@ -113,11 +113,31 @@ class PaymentApiApplicationTests {
     }
 
     @Test
+    void currentMerchantIsReturnedForValidApiKey() throws Exception {
+        var response = getCurrentMerchant(API_KEY);
+        assertThat(response.statusCode()).isEqualTo(200);
+        var body = new ObjectMapper().readTree(response.body());
+        assertThat(body.get("id").asText()).isEqualTo(ProvisionDemoMerchant.MERCHANT_ID.toString());
+        assertThat(body.get("name").asText()).isEqualTo("Demo Merchant");
+        assertThat(response.body()).doesNotContain(API_KEY).doesNotContain("apiKeyHash");
+    }
+
+    @Test
+    void missingOrUnknownApiKeyIsUnauthorizedWithProblemDetails() throws Exception {
+        for (String key : new String[]{null, "short", "x".repeat(40)}) {
+            var response = getCurrentMerchant(key);
+            assertThat(response.statusCode()).isEqualTo(401);
+            assertThat(response.headers().firstValue("WWW-Authenticate")).hasValue("ApiKey header=\"X-Api-Key\"");
+            var problem = new ObjectMapper().readTree(response.body());
+            assertThat(problem.get("status").asInt()).isEqualTo(401);
+            assertThat(problem.get("detail").asText()).isEqualTo("Missing or invalid API key");
+        }
+    }
+
+    @Test
     void healthCheckIsUpWithoutExposingDetails() throws Exception {
-        String port = environment.getRequiredProperty("local.server.port");
         try (HttpClient client = HttpClient.newHttpClient()) {
-            var request = HttpRequest.newBuilder(
-                    URI.create("http://localhost:" + port + "/actuator/health")).GET().build();
+            var request = HttpRequest.newBuilder(uri("/actuator/health")).GET().build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             var health = new ObjectMapper().readTree(response.body());
@@ -125,5 +145,19 @@ class PaymentApiApplicationTests {
             assertThat(health.has("components")).isFalse();
             assertThat(health.has("details")).isFalse();
         }
+    }
+
+    private HttpResponse<String> getCurrentMerchant(String apiKey) throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            var request = HttpRequest.newBuilder(uri("/v1/merchants/me")).GET();
+            if (apiKey != null) {
+                request.header("X-Api-Key", apiKey);
+            }
+            return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    private URI uri(String path) {
+        return URI.create("http://localhost:" + environment.getRequiredProperty("local.server.port") + path);
     }
 }

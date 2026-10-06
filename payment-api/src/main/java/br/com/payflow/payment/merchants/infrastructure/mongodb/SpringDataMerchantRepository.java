@@ -1,4 +1,4 @@
-package br.com.payflow.payment.infrastructure.persistence.mongodb;
+package br.com.payflow.payment.merchants.infrastructure.mongodb;
 
 import java.util.Optional;
 import java.util.UUID;

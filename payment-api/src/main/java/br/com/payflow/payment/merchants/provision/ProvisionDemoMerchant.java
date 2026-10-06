@@ -1,32 +1,29 @@
-package br.com.payflow.payment.application;
+package br.com.payflow.payment.merchants.provision;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
 
-import br.com.payflow.payment.domain.Merchant;
+import br.com.payflow.payment.merchants.domain.ApiKey;
+import br.com.payflow.payment.merchants.domain.ApiKeyHasher;
+import br.com.payflow.payment.merchants.domain.Merchant;
 
 public final class ProvisionDemoMerchant {
 
     public static final UUID MERCHANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private final MerchantStore merchants;
+    private final MerchantProvisioning merchants;
+    private final ApiKeyHasher hasher;
     private final Clock clock;
 
-    public ProvisionDemoMerchant(MerchantStore merchants, Clock clock) {
+    public ProvisionDemoMerchant(MerchantProvisioning merchants, ApiKeyHasher hasher, Clock clock) {
         this.merchants = Objects.requireNonNull(merchants);
+        this.hasher = Objects.requireNonNull(hasher);
         this.clock = Objects.requireNonNull(clock);
     }
 
     public Merchant execute(String apiKey) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.length() < 32 || apiKey.length() > 256) {
-            throw new IllegalArgumentException("Demo API key must contain between 32 and 256 characters");
-        }
-        String hash = hashApiKey(apiKey);
+        String hash = hasher.hash(ApiKey.of(apiKey));
         Merchant stored = Objects.requireNonNull(merchants.insertIfAbsent(
                 new Merchant(MERCHANT_ID, "Demo Merchant", hash, Instant.now(clock))),
                 "Merchant store returned no merchant");
@@ -36,14 +33,5 @@ public final class ProvisionDemoMerchant {
                     + "Use the original key; changing the environment does not rotate credentials.");
         }
         return stored;
-    }
-
-    private static String hashApiKey(String apiKey) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(apiKey.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
     }
 }
