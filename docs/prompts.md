@@ -23,12 +23,13 @@ Registro cronológico da construção do PayFlow. As escolhas temporárias são 
 | 17 | Implementar somente Clean Architecture; SOLID e Vertical Slice ficam com outra equipe | Definição do escopo exclusivo da refatoração |
 | 18 | “Pode começar” | Separação de domínio, aplicação, contrato de persistência, adaptador MongoDB e composição Spring; novos testes |
 | 19 | “Faça commit e push” | Commit `7fb4582`, publicado em `clean-architecture-implementation` |
-| 20 | Implementar Vertical Slice e SOLID em duas funcionalidades iniciais e gerar documento com GitHub da nova branch, prompts e diagramas de classes/componentes do backend | Branch `feature/vertical-slice-solid`; fatias `provision` e `authenticate` (`GET /v1/merchants/me`); portas segregadas; ArchUnit; `docs/ARQUITETURA_BACKEND.md` e diagramas |
+| 20 | Implementar Vertical Slice e SOLID em duas funcionalidades iniciais e gerar documento com GitHub da nova branch, prompts e diagramas de classes/componentes do backend | Branch `clean-architecture-implementation`; fatias `provision` e `authenticate` (`GET /v1/merchants/me`); portas segregadas; ArchUnit; `docs/ARQUITETURA_BACKEND.md` e diagramas |
 | 21 | Implementar no próprio diretório `PayFlow`, e não em outro | Trabalho movido do worktree separado para o repositório principal |
 | 22 | Pular os testes e seguir para o documento (.docx) | Geração do documento de entrega (`docs/Entrega_VerticalSlice_SOLID.docx`) |
+| 23 | Colocar as alterações na branch existente `clean-architecture-implementation` | Commit aplicado por fast-forward em `clean-architecture-implementation` e publicado |
 
 ## Estado resultante
 
-A base utiliza Java 21, Spring Boot, MongoDB Atlas e Docker. Na branch `feature/vertical-slice-solid`, Vertical Slice, Clean Architecture e SOLID estão aplicados a duas funcionalidades: provisionamento do lojista demo e autenticação por API Key (`GET /v1/merchants/me`). A `main` permanece na base anterior às refatorações.
+A base utiliza Java 21, Spring Boot, MongoDB Atlas e Docker. Na branch `clean-architecture-implementation`, Vertical Slice, Clean Architecture e SOLID estão aplicados a duas funcionalidades: provisionamento do lojista demo e autenticação por API Key (`GET /v1/merchants/me`). A `main` permanece na base anterior às refatorações.
 
 PostgreSQL, Flyway e H2 foram substituídos. Pagamentos, portal e notificações continuam pendentes. Azure é o destino planejado; a implantação no Azure e a publicação da imagem não foram realizadas neste histórico.

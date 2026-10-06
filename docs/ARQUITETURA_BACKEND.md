@@ -1,6 +1,6 @@
 # PayFlow — Arquitetura do backend (Vertical Slice + Clean Architecture + SOLID)
 
-Branch: `feature/vertical-slice-solid` — https://github.com/CaioSeniuk/PayFlow/tree/feature/vertical-slice-solid
+Branch: `clean-architecture-implementation` — https://github.com/CaioSeniuk/PayFlow/tree/clean-architecture-implementation
 
 ## Funcionalidades implementadas como fatias verticais
 
