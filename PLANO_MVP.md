@@ -8,6 +8,22 @@ O MVP não movimenta dinheiro real, não recebe dados de cartão e não implemen
 
 Este documento é um plano de execução, não uma declaração de funcionalidades já implementadas.
 
+**Decisão atual:** usar MongoDB Atlas como banco externo durável.
+A API continua em Java/Spring Boot e pode executar no Azure. JPA, Flyway,
+PostgreSQL e H2 não fazem parte da base atual. Transações e idempotência
+do fluxo de pagamentos ainda precisam ser implementadas.
+
+### Estado verificado em 05/10/2026
+
+A etapa 1 está concluída: API executada em Docker no macOS Apple Silicon,
+conexão ao MongoDB Atlas confirmada pelo health check `UP`, índice único e
+provisionamento do lojista implementados. Os três testes de integração com
+MongoDB isolado passaram. A imagem atual foi validada em ARM64.
+
+Não há endpoints de pagamentos, autenticação HTTP, eventos, portal ou função
+implementados. Não houve publicação da imagem ou implantação da API no Azure.
+Windows, Linux e execução AMD64 ainda precisam de validação.
+
 ## 2. Escopo
 
 ### Incluído no MVP
@@ -17,7 +33,7 @@ Este documento é um plano de execução, não uma declaração de funcionalidad
 - Simulação de aprovação, recusa e timeout do provedor.
 - Consulta de pagamento por identificador, limitada ao lojista autenticado.
 - Idempotência na criação de pagamentos.
-- Persistência em PostgreSQL.
+- Persistência em MongoDB Atlas.
 - Publicação confiável de eventos com Transactional Outbox.
 - Consumo de eventos e envio de webhook por uma função Java.
 - Retentativas e dead-letter queue (DLQ).
@@ -37,14 +53,14 @@ Os estilos arquiteturais exigidos pela atividade continuam obrigatórios na entr
 
 ## 3. Componentes iniciais
 
-| Componente | Tecnologia | Responsabilidade |
-|---|---|---|
-| Payment API | Java 21 + Spring Boot + Maven | Autenticação, pagamentos, consulta, idempotência e outbox |
-| Banco da API | PostgreSQL | Lojista pré-cadastrado, pagamentos, idempotência e eventos pendentes |
-| Mensageria | Azure Service Bus | Transporte de eventos, retentativas e DLQ |
-| Notification Function | Azure Functions em Java | Consumir eventos e entregar webhooks |
-| Portal | React + TypeScript | Criar e consultar pagamentos |
-| Receptor de demonstração | Endpoint local de apoio | Receber webhooks e permitir verificar a entrega |
+| Componente | Tecnologia | Responsabilidade planejada | Estado atual |
+|---|---|---|---|
+| Payment API | Java 21 + Spring Boot + Maven | Autenticação, pagamentos, consulta, idempotência e outbox | Base e health check |
+| Banco da API | MongoDB Atlas | Lojista, pagamentos, idempotência e eventos | Coleção `merchants` e índice |
+| Mensageria | Azure Service Bus | Transporte de eventos, retentativas e DLQ | Não implementada |
+| Notification Function | Azure Functions em Java | Consumir eventos e entregar webhooks | Diretório vazio |
+| Portal | React + TypeScript | Criar e consultar pagamentos | Diretório vazio |
+| Receptor de demonstração | Endpoint local de apoio | Receber webhooks e verificar entrega | Não implementado |
 
 O simulador do provedor começa dentro da API, sem um serviço independente. Redis não faz parte da base inicial.
 
@@ -53,7 +69,7 @@ Portal ou loja integradora
            |
        Payment API
            |
-       PostgreSQL
+       MongoDB Atlas
        pagamento + outbox
            |
    Publicador da outbox
@@ -89,18 +105,17 @@ Estrutura inicial do repositório:
 payment-api/
 notification-function/
 portal/
-local/
 ```
 
 ## 5. Contratos mínimos
 
 ### HTTP
 
-| Operação | Endpoint | Comportamento |
-|---|---|---|
-| Criar pagamento | `POST /v1/payments` | Exige API Key e `Idempotency-Key` |
-| Consultar pagamento | `GET /v1/payments/{id}` | Retorna apenas pagamento pertencente ao lojista |
-| Verificar saúde | `/actuator/health` | Usado para verificar a aplicação |
+| Operação | Endpoint | Comportamento | Estado |
+|---|---|---|---|
+| Criar pagamento | `POST /v1/payments` | Exige API Key e `Idempotency-Key` | Planejado |
+| Consultar pagamento | `GET /v1/payments/{id}` | Retorna apenas pagamento pertencente ao lojista | Planejado |
+| Verificar saúde | `/actuator/health` | Verifica aplicação e conectividade MongoDB | Implementado |
 
 A criação recebe valor, moeda, referência da loja e token fictício. A resposta inclui identificador e estado do pagamento.
 
@@ -138,14 +153,20 @@ A função inicial não terá banco próprio nem promessa de histórico ou dedup
 
 ## 6. Persistência inicial
 
-| Tabela | Conteúdo |
+| Coleção | Conteúdo |
 |---|---|
 | `merchants` | Lojista pré-cadastrado e hash da API Key |
 | `payments` | Valor, moeda, referência, estado e versão |
 | `idempotency_records` | Escopo, chave, hash da requisição, estado e resposta |
 | `outbox_events` | Evento, payload, estado de publicação e tentativas |
 
-Usar migrações versionadas, por exemplo com Flyway. Não depender de criação automática de tabelas pelo Hibernate nos ambientes compartilhados.
+Somente `merchants` está implementada. As demais coleções são planejadas.
+
+Usar Spring Data MongoDB e índices explícitos. A base cria um índice único para
+o hash de API Key. Versionar futuras evoluções dos documentos e scripts de
+migração; Flyway e Hibernate não são usados. O banco deve suportar transações
+multi-documento para a futura outbox; implementar e validar o gerenciamento
+de transações MongoDB, sem presumir atomicidade entre coleções.
 
 Antes de simular a chamada ao provedor, persistir a identidade da operação. Depois, atualizar o resultado e inserir o evento em uma transação. Não manter uma transação de banco aberta durante uma chamada externa.
 
@@ -155,7 +176,7 @@ No simulador, usar o identificador estável da operação para demonstrar idempo
 
 ### Local
 
-- Docker Compose para PostgreSQL e receptor de webhook.
+- Docker Compose para a API conectada ao Atlas; receptor de webhook a implementar.
 - API e portal executados localmente.
 - Azure Functions Core Tools para a função.
 - Avaliar o emulador oficial de Service Bus e sua compatibilidade com o ambiente de desenvolvimento.
@@ -167,7 +188,7 @@ No simulador, usar o identificador estável da operação para demonstrar idempo
 - Payment API no Azure Container Apps.
 - Notification Function no Azure Functions.
 - Service Bus para mensagens e DLQ.
-- PostgreSQL preferencialmente gerenciado.
+- MongoDB Atlas externo, com credenciais como segredo e acesso de rede restrito.
 - Portal em hospedagem estática, não necessariamente Azure.
 - Credenciais fornecidas pelo ambiente; usar identidade gerenciada onde aplicável.
 - Confirmar planos, região, permissões e custos antes de provisionar.
@@ -178,13 +199,15 @@ O portal não deve conter API Key ou outros segredos no bundle. Para o MVP, a cr
 
 ### Etapa 1 — Preparar a base
 
-- [ ] Criar a aplicação Spring Boot com Maven e Java 21.
-- [ ] Criar os diretórios dos componentes.
-- [ ] Configurar PostgreSQL local e variáveis de ambiente de exemplo, sem segredos reais.
-- [ ] Criar migrações e provisionamento do lojista de demonstração.
-- [ ] Expor health check.
+- [x] Criar a aplicação Spring Boot com Maven e Java 21.
+- [x] Criar os diretórios dos componentes.
+- [x] Configurar integração MongoDB e variáveis de ambiente de exemplo, sem segredos reais.
+- [x] Criar índice único e provisionamento do lojista de demonstração.
+- [x] Expor health check.
 
-Critério de conclusão: API inicia, conecta ao banco e aplica as migrações.
+Critério de conclusão: API inicia, conecta ao banco e cria o índice e o lojista.
+A conexão ao cluster Atlas foi verificada na execução Docker atual. Cada membro
+do time precisa configurar suas credenciais e acesso de rede sem versionar segredos.
 
 ### Etapa 2 — Implementar pagamentos
 
@@ -218,7 +241,7 @@ Critério de conclusão: executar o fluxo pelo navegador sem credenciais embutid
 
 ### Etapa 5 — Implantar e demonstrar
 
-- [ ] Criar imagem da API e configuração de implantação.
+- [x] Criar imagem da API e configuração de implantação.
 - [ ] Provisionar recursos Azure compatíveis com o orçamento.
 - [ ] Implantar API, função e portal.
 - [ ] Verificar logs com identificadores de correlação, sem dados sensíveis.
@@ -237,13 +260,16 @@ Critério de conclusão: demonstração ponta a ponta reproduzível e instruçõ
 - [ ] Chave reutilizada com payload diferente retorna conflito.
 - [ ] Timeout não produz recusa falsa nem nova cobrança automática.
 - [ ] Falha do broker mantém evento pendente na outbox.
-- [ ] Reinício do publicador retoma eventos pendentes.
+- [ ] Reinício do publicador e da API retoma eventos pendentes no banco externo.
 - [ ] Webhook contém assinatura válida e identificador estável.
 - [ ] Falha de entrega produz retentativas e DLQ.
 - [ ] Reentrega é tolerada pelo receptor.
 - [ ] Fluxo funciona no Azure, não apenas com dependências simuladas.
 
-Usar testes unitários para regras e testes de integração com PostgreSQL para persistência, transações e concorrência. Validar separadamente a integração real com Service Bus e Azure Functions.
+Usar testes unitários para regras e testes de integração com MongoDB em replica
+set para transações e concorrência. Validar persistência após reinício e
+separadamente a conectividade com Atlas.
+Validar separadamente a integração real com Service Bus e Azure Functions.
 
 ## 10. Evolução e passagem para o outro time
 
@@ -253,10 +279,12 @@ Após a aceitação da base:
 2. Acrescentar Spring Cloud Gateway e BFF específico do portal.
 3. Extrair Merchant Service com banco e usuário próprios.
 4. Evoluir configuração de destinatários e persistência de notificações, se exigidas.
-5. Entregar ao outro time os contratos, migrações, testes, cenários de falha e instruções de execução.
+5. Entregar ao outro time os contratos, índices, evolução dos documentos, testes, cenários de falha e instruções de execução.
 6. O outro time aplica Vertical Slice, Clean Architecture e SOLID preservando os contratos e comportamentos acordados.
 
-Database per Service significa propriedade exclusiva dos dados: nenhum serviço consulta diretamente as tabelas de outro. Bancos separados podem compartilhar uma instância PostgreSQL, com permissões isoladas.
+Database per Service significa propriedade exclusiva dos dados: nenhum serviço
+consulta diretamente as coleções de outro. Serviços podem compartilhar um cluster
+Atlas com bancos e usuários separados, respeitando os limites do plano.
 
 Não apresentar a organização convencional do MVP como implementação de Clean Architecture ou Vertical Slice.
 
@@ -267,7 +295,7 @@ Não apresentar a organização convencional do MVP como implementação de Clea
 - [ ] Manter C4 níveis 1 e 2 conforme a estrutura realmente implantada.
 - [ ] Atualizar C4 níveis 3 e 4 depois da refatoração do outro time.
 - [ ] Entregar UML de classes, componentes e sequência.
-- [ ] Entregar DER por serviço, sem relacionamentos físicos entre bancos.
+- [ ] Entregar modelo lógico de entidades e relacionamentos por serviço, explicando sua representação documental no MongoDB, sem chaves estrangeiras físicas entre bancos.
 - [ ] Atualizar Software Architecture Canvas.
 - [ ] Usar o template oficial arc42 e inserir diagramas nas respectivas seções.
 - [ ] Gerar PDF e verificar legibilidade, cortes e referências.

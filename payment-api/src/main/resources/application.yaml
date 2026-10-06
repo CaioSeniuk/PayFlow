@@ -1,14 +1,11 @@
 spring:
   application:
     name: payment-api
-  datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
+  mongodb:
+    uri: ${MONGODB_URI}
+    database: ${MONGODB_DATABASE:payflow}
+    representation:
+      uuid: standard
   mvc:
     problemdetails:
       enabled: true

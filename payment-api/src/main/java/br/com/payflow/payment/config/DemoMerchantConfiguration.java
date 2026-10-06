@@ -5,7 +5,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.time.Instant;
 
+import br.com.payflow.payment.entity.Merchant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
@@ -13,8 +15,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "payflow.demo-merchant.enabled", havingValue = "true")
@@ -25,24 +30,20 @@ public class DemoMerchantConfiguration {
     private static final Logger log = LoggerFactory.getLogger(DemoMerchantConfiguration.class);
 
     @Bean
-    ApplicationRunner provisionDemoMerchant(JdbcTemplate jdbc, TransactionTemplate transactions,
+    ApplicationRunner provisionDemoMerchant(MongoTemplate mongo,
             DemoMerchantProperties properties) {
         return args -> {
             String hash = hashApiKey(properties.apiKey());
-            transactions.executeWithoutResult(transaction -> {
-                jdbc.update("""
-                        INSERT INTO merchants (id, name, api_key_hash)
-                        VALUES (?, 'Demo Merchant', ?)
-                        ON CONFLICT (id) DO NOTHING
-                        """, MERCHANT_ID, hash);
-                String storedHash = jdbc.queryForObject(
-                        "SELECT api_key_hash FROM merchants WHERE id = ?", String.class, MERCHANT_ID);
-                if (!hash.equals(storedHash)) {
-                    throw new IllegalStateException(
-                            "Demo merchant already exists with a different API key. "
-                            + "Use the original key; changing the environment does not rotate credentials.");
-                }
-            });
+            Merchant merchant = mongo.findAndModify(
+                    Query.query(Criteria.where("_id").is(MERCHANT_ID)),
+                    new Update().setOnInsert("name", "Demo Merchant")
+                            .setOnInsert("apiKeyHash", hash).setOnInsert("createdAt", Instant.now()),
+                    FindAndModifyOptions.options().upsert(true).returnNew(true), Merchant.class);
+            if (merchant == null || !hash.equals(merchant.getApiKeyHash())) {
+                throw new IllegalStateException(
+                        "Demo merchant already exists with a different API key. "
+                        + "Use the original key; changing the environment does not rotate credentials.");
+            }
             log.info("Demo merchant provisioned: {}", MERCHANT_ID);
         };
     }
