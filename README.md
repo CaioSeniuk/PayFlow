@@ -10,20 +10,46 @@ hash da API Key, provisionamento opcional de demonstracao e health check.
 Pagamentos, autenticacao HTTP, portal e notificacoes ainda nao foram implementados.
 JPA, Flyway, PostgreSQL e H2 foram removidos da configuracao atual.
 
-Organizacao convencional, sem Vertical Slice ou Clean Architecture.
+Clean Architecture aplicada ao provisionamento do lojista: dominio e caso
+de uso independentes de frameworks, com adaptador MongoDB externo.
+Vertical Slice e a etapa especifica de SOLID ficam com outra equipe.
 Veja [PLANO_MVP.md](PLANO_MVP.md) para o escopo.
+
+### Organizacao interna
+
+```text
+domain/                              Merchant puro (Java)
+application/                         ProvisionDemoMerchant e MerchantStore
+infrastructure/persistence/mongodb/  Documento, mapper e adaptador MongoDB
+config/                              Composicao Spring, indices e runner
+```
+
+Dependencias: `application -> domain`; `infrastructure -> application/domain`;
+`config` conecta os componentes. O nucleo nao importa Spring, MongoDB ou
+Jakarta. O contrato `MerchantStore.insertIfAbsent` exige insercao atomica sem
+sobrescrever um lojista existente; o adaptador preserva o upsert MongoDB.
+O documento mantem a colecao `merchants`, os campos e o formato UUID existentes.
+
+O runner apenas chama o caso de uso e registra o resultado. Hash, validacao
+da chave e rejeicao de credencial diferente pertencem ao caso de uso.
+Nao foram acrescentados endpoints ou funcionalidades de pagamento.
 
 ### Validacao realizada
 
 Em 05/10/2026, a API foi executada em Docker no macOS Apple Silicon,
 conectada ao MongoDB Atlas, e `/actuator/health` retornou `UP`.
-Tres testes de integracao passaram com MongoDB isolado: provisionamento
+Na validacao anterior a refatoracao, tres testes de integracao passaram com MongoDB isolado: provisionamento
 repetivel com armazenamento apenas do hash, rejeicao de hash duplicado e
 health check sem detalhes internos. A imagem atual foi construida e
 executada em ARM64; Windows, Linux e runtime AMD64 ainda nao foram testados.
 
 A imagem nao foi publicada em registry e a API nao foi implantada no Azure.
 Rodar o container localmente com Atlas nao publica a API na internet.
+
+Na refatoracao Clean Architecture, passaram cinco testes unitarios e cinco
+testes de integracao com MongoDB isolado. O nucleo tambem foi compilado
+somente com o JDK, sem dependencias externas. O container Atlas em execucao
+anterior nao foi recriado por essa refatoracao.
 
 ### Estrutura entregue
 
@@ -183,6 +209,11 @@ No PowerShell: `.\mvnw.cmd verify`.
 Os testes usam MongoDB real isolado via Testcontainers, sem conectar ao Atlas
 ou modificar seus dados. Testar MongoDB local nao valida rede, credenciais
 ou limites do seu cluster Atlas.
+
+Os testes unitarios de `ProvisionDemoMerchant` nao usam Spring nem banco:
+validam hash, repeticao, conflito de credencial, entradas invalidas e falhas
+de persistencia. Os testes de integracao cobrem tambem concorrencia e
+preservacao do documento em caso de conflito.
 
 ## Publicacao
 

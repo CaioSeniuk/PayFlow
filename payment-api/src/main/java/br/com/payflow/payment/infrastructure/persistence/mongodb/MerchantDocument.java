@@ -1,4 +1,4 @@
-package br.com.payflow.payment.entity;
+package br.com.payflow.payment.infrastructure.persistence.mongodb;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -7,7 +7,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("merchants")
-public class Merchant {
+public class MerchantDocument {
 
     @Id
     private UUID id;
@@ -18,7 +18,7 @@ public class Merchant {
 
     private Instant createdAt;
 
-    protected Merchant() {
+    protected MerchantDocument() {
     }
 
     public UUID getId() {

@@ -9,9 +9,9 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 
-import br.com.payflow.payment.config.DemoMerchantConfiguration;
-import br.com.payflow.payment.entity.Merchant;
-import br.com.payflow.payment.repository.MerchantRepository;
+import br.com.payflow.payment.application.ProvisionDemoMerchant;
+import br.com.payflow.payment.infrastructure.persistence.mongodb.MerchantDocument;
+import br.com.payflow.payment.infrastructure.persistence.mongodb.SpringDataMerchantRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationRunner;
@@ -50,13 +50,16 @@ class PaymentApiApplicationTests {
     }
 
     @Autowired
-    MerchantRepository merchants;
+    SpringDataMerchantRepository merchants;
 
     @Autowired
     MongoTemplate mongo;
 
     @Autowired
     ApplicationRunner provisionDemoMerchant;
+
+    @Autowired
+    ProvisionDemoMerchant useCase;
 
     @Autowired
     Environment environment;
@@ -68,8 +71,8 @@ class PaymentApiApplicationTests {
         provisionDemoMerchant.run(new DefaultApplicationArguments(new String[0]));
 
         assertThat(merchants.count()).isEqualTo(1);
-        Merchant merchant = merchants.findByApiKeyHash(hash).orElseThrow();
-        assertThat(merchant.getId()).isEqualTo(DemoMerchantConfiguration.MERCHANT_ID);
+        MerchantDocument merchant = merchants.findByApiKeyHash(hash).orElseThrow();
+        assertThat(merchant.getId()).isEqualTo(ProvisionDemoMerchant.MERCHANT_ID);
         assertThat(merchant.getApiKeyHash()).isNotEqualTo(API_KEY);
         assertThat(merchant.getCreatedAt()).isNotNull();
         var stored = mongo.getCollection("merchants").find().first();
@@ -79,10 +82,34 @@ class PaymentApiApplicationTests {
 
     @Test
     void duplicateApiKeyHashIsRejected() {
-        String hash = merchants.findById(DemoMerchantConfiguration.MERCHANT_ID).orElseThrow().getApiKeyHash();
+        String hash = merchants.findById(ProvisionDemoMerchant.MERCHANT_ID).orElseThrow().getApiKeyHash();
         var duplicate = new org.bson.Document("_id", "another-merchant").append("apiKeyHash", hash);
         assertThatThrownBy(() -> mongo.insert(duplicate, "merchants"))
                 .isInstanceOf(DuplicateKeyException.class);
+    }
+
+    @Test
+    void changedKeyDoesNotOverwriteExistingDocument() {
+        MerchantDocument original = merchants.findById(ProvisionDemoMerchant.MERCHANT_ID).orElseThrow();
+        assertThatThrownBy(() -> useCase.execute("different-key-for-integration-test"))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("different API key");
+        MerchantDocument unchanged = merchants.findById(original.getId()).orElseThrow();
+        assertThat(unchanged.getApiKeyHash()).isEqualTo(original.getApiKeyHash());
+        assertThat(unchanged.getCreatedAt()).isEqualTo(original.getCreatedAt());
+    }
+
+    @Test
+    void concurrentProvisioningPreservesSingleMerchant() throws Exception {
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+            var tasks = new java.util.ArrayList<java.util.concurrent.Callable<java.util.UUID>>();
+            for (int index = 0; index < 12; index++) {
+                tasks.add(() -> useCase.execute(API_KEY).id());
+            }
+            for (var result : executor.invokeAll(tasks)) {
+                assertThat(result.get()).isEqualTo(ProvisionDemoMerchant.MERCHANT_ID);
+            }
+        }
+        assertThat(merchants.count()).isEqualTo(1);
     }
 
     @Test

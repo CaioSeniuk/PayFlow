@@ -4,7 +4,9 @@
 
 Construir uma base funcional em Java 21 e Spring Boot capaz de criar um pagamento simulado, consultar seu resultado e enviar um webhook ao lojista, sem duplicar a operação quando a requisição for repetida.
 
-O MVP não movimenta dinheiro real, não recebe dados de cartão e não implementa Vertical Slice, Clean Architecture ou uma estrutura orientada a SOLID. Outro time será responsável por essa evolução.
+O MVP não movimenta dinheiro real nem recebe dados de cartão. Clean Architecture
+é aplicada agora à base existente. Vertical Slice e a etapa específica de SOLID
+serão feitas por outra equipe.
 
 Este documento é um plano de execução, não uma declaração de funcionalidades já implementadas.
 
@@ -23,6 +25,13 @@ MongoDB isolado passaram. A imagem atual foi validada em ARM64.
 Não há endpoints de pagamentos, autenticação HTTP, eventos, portal ou função
 implementados. Não houve publicação da imagem ou implantação da API no Azure.
 Windows, Linux e execução AMD64 ainda precisam de validação.
+
+Clean Architecture foi aplicada ao provisionamento de lojista: domínio puro,
+caso de uso, contrato de persistência, adaptador MongoDB e composição Spring.
+Cinco testes unitários e cinco testes de integração passaram após a refatoração,
+incluindo concorrência e rejeição de troca da chave sem sobrescrever os dados.
+O núcleo compila com o JDK sem frameworks. O container anterior ainda precisa
+ser reconstruído para executar essa versão.
 
 ## 2. Escopo
 
@@ -47,7 +56,7 @@ Windows, Linux e execução AMD64 ainda precisam de validação.
 - Relatórios e painel de administração.
 - Histórico completo de entregas e reprocessamento de DLQ pela interface.
 - Microfrontends, BFF, API Gateway próprio e extração de Merchant Service.
-- Refatoração para Vertical Slice, Clean Architecture e SOLID.
+- Refatoração para Vertical Slice e etapa específica de SOLID.
 
 Os estilos arquiteturais exigidos pela atividade continuam obrigatórios na entrega final. Seu adiamento vale apenas para o primeiro incremento.
 
@@ -83,19 +92,20 @@ Portal ou loja integradora
 
 ## 4. Organização do código
 
-Usar uma estrutura convencional na Payment API:
+Estrutura atual da Payment API, após aplicar Clean Architecture à base:
 
 ```text
-controller/
-service/
-repository/
-entity/
-dto/
-integration/
+domain/
+application/
+infrastructure/persistence/mongodb/
 config/
 ```
 
-Não criar handlers por slice, portas e adaptadores, módulos por camada ou interfaces apenas para antecipar a refatoração.
+O domínio `Merchant` e o caso de uso `ProvisionDemoMerchant` não dependem de
+frameworks. `MerchantStore` define a persistência necessária ao caso de uso.
+O adaptador MongoDB implementa esse contrato e mapeia documentos para o domínio.
+Spring compõe as dependências em `config`. Manter um único módulo Maven,
+sem organização por slices ou abstrações extras para uma revisão de SOLID.
 
 Manter regras fora dos controllers, validação explícita e responsabilidades compreensíveis. A função terá um trigger simples e lógica de entrega separada o suficiente para ser testada, sem impor uma arquitetura ao próximo time.
 
@@ -280,13 +290,14 @@ Após a aceitação da base:
 3. Extrair Merchant Service com banco e usuário próprios.
 4. Evoluir configuração de destinatários e persistência de notificações, se exigidas.
 5. Entregar ao outro time os contratos, índices, evolução dos documentos, testes, cenários de falha e instruções de execução.
-6. O outro time aplica Vertical Slice, Clean Architecture e SOLID preservando os contratos e comportamentos acordados.
+6. O outro time aplica Vertical Slice e SOLID, preservando os limites de Clean Architecture, contratos e comportamentos acordados.
 
 Database per Service significa propriedade exclusiva dos dados: nenhum serviço
 consulta diretamente as coleções de outro. Serviços podem compartilhar um cluster
 Atlas com bancos e usuários separados, respeitando os limites do plano.
 
-Não apresentar a organização convencional do MVP como implementação de Clean Architecture ou Vertical Slice.
+Clean Architecture está limitada ao provisionamento de lojista existente.
+Não apresentar essa entrega como Vertical Slice nem como MVP completo.
 
 ## 11. Documentação da entrega final
 
