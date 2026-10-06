@@ -2,6 +2,11 @@
 
 Branch: `clean-architecture-implementation` — https://github.com/CaioSeniuk/PayFlow/tree/clean-architecture-implementation
 
+Alunos: Caio Henrique, Gabriel Moribe, Guilherme Celente e Leonardo berlanda
+
+Caio e Guilherme: Implementação das arquiteturas
+Leonardo e Gabriel: Diagramação das arquiteturas
+
 ## Funcionalidades implementadas como fatias verticais
 
 | Slice | Pacote | Gatilho | Comportamento |
